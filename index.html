@@ -86,6 +86,10 @@ table.main tr:hover td{background:#f5f8fd;}
     <p id="topbarSub">กำลังโหลดข้อมูล...</p>
   </div>
   <div class="topbar-right">
+    <button class="btn" onclick="showGithubSettings()" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:13px;" title="ตั้งค่า GitHub Sync">⚙️ GitHub</button>
+    <button class="btn" id="syncBtn" onclick="syncToGithub()" style="background:rgba(40,167,69,.8);color:#fff;border-color:rgba(40,167,69,.9);font-size:13px;">☁️ Sync</button>
+    <button class="btn" onclick="exportData()" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:13px;">💾 Export</button>
+    <label class="btn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:13px;cursor:pointer;">📥 Import<input type="file" accept=".json" onchange="importData(this)" style="display:none;"></label>
     <button class="btn" onclick="if(confirm('ล้างข้อมูลที่เซฟทั้งหมดออกจากเครื่อง?'))clearStorage();" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:13px;">🗑️ ล้างข้อมูล</button>
     <label class="btn btn-orange" style="cursor:pointer;">
       📂 Import Excel
@@ -206,6 +210,194 @@ let selected = new Set();
 
 // LocalStorage helpers
 const LS_KEY = 'payslip_data';
+function exportData(){
+  try{
+    const data = JSON.stringify({monthsData, activeYYYYMM}, null, 2);
+    const blob = new Blob([data], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    a.href = url;
+    a.download = 'payslip_backup_'+date+'.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }catch(e){ alert('Export ไม่สำเร็จ: '+e.message); }
+}
+
+function importData(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.monthsData) throw new Error('ไฟล์ไม่ถูกต้อง');
+      if(!confirm('นำเข้าข้อมูล '+Object.keys(parsed.monthsData).length+' เดือน? ข้อมูลเดิมจะถูกแทนที่')) return;
+      monthsData = parsed.monthsData;
+      saveToStorage();
+      const ym = parsed.activeYYYYMM || Object.keys(monthsData).sort().pop();
+      setActiveMonth(ym, false);
+      renderMonthSelect();
+      document.getElementById('importStatus').textContent = '✅ Import ข้อมูลสำเร็จ';
+    }catch(err){
+      alert('อ่านไฟล์ไม่สำเร็จ: '+err.message);
+    }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+/* ===== GITHUB SYNC ===== */
+const GH_KEY = 'gh_config';
+
+function getGhConfig(){
+  try{ return JSON.parse(localStorage.getItem(GH_KEY))||{}; }catch(e){ return {}; }
+}
+function saveGhConfig(cfg){
+  localStorage.setItem(GH_KEY, JSON.stringify(cfg));
+}
+
+function showGithubSettings(){
+  const cfg = getGhConfig();
+  document.getElementById('modalTitle').textContent = '⚙️ ตั้งค่า GitHub Sync';
+  document.getElementById('modalBody').innerHTML = `
+    <div style="font-size:13px;color:#666;margin-bottom:14px;padding:10px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;">
+      🔒 Token เก็บในเครื่องคุณเท่านั้น ไม่ได้ส่งออกไปไหนนอกจาก GitHub
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;font-size:14px;">
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">GitHub Token (ghp_...)</label>
+        <input id="gh_token" type="password" value="${cfg.token||''}" placeholder="ghp_xxxxxxxxxxxx"
+          style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:7px;font-family:monospace;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">GitHub Username</label>
+        <input id="gh_user" value="${cfg.user||''}" placeholder="เช่น wuv065"
+          style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:7px;font-size:14px;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">Repository Name</label>
+        <input id="gh_repo" value="${cfg.repo||''}" placeholder="เช่น Payslip"
+          style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:7px;font-size:14px;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">ชื่อไฟล์ข้อมูล</label>
+        <input id="gh_file" value="${cfg.file||'payslip_data.json'}" placeholder="payslip_data.json"
+          style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:7px;font-size:14px;">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap;">
+      <button class="btn" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn" onclick="testGhConnection()" style="background:#f0f5ff;color:#1a4f8a;border-color:#b3ccf0;">🔍 ทดสอบ</button>
+      <button class="btn btn-primary" onclick="saveGhSettings()">💾 บันทึก</button>
+    </div>
+    <div id="gh_test_result" style="margin-top:10px;font-size:13px;"></div>`;
+  document.getElementById('modal').classList.add('open');
+}
+
+function saveGhSettings(){
+  const cfg = {
+    token: document.getElementById('gh_token').value.trim(),
+    user:  document.getElementById('gh_user').value.trim(),
+    repo:  document.getElementById('gh_repo').value.trim(),
+    file:  document.getElementById('gh_file').value.trim()||'payslip_data.json',
+  };
+  if(!cfg.token||!cfg.user||!cfg.repo){ alert('กรุณากรอกข้อมูลให้ครบ'); return; }
+  saveGhConfig(cfg);
+  closeModal();
+  updateSyncBtn();
+  alert('✅ บันทึกแล้ว กด ☁️ Sync เพื่ออัพโหลดข้อมูลขึ้น GitHub');
+}
+
+async function testGhConnection(){
+  const cfg = {
+    token: document.getElementById('gh_token').value.trim(),
+    user:  document.getElementById('gh_user').value.trim(),
+    repo:  document.getElementById('gh_repo').value.trim(),
+  };
+  const res = document.getElementById('gh_test_result');
+  res.textContent = '🔄 กำลังทดสอบ...';
+  try{
+    const r = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}`,{
+      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
+    });
+    if(r.ok){ res.style.color='#3B6D11'; res.textContent='✅ เชื่อมต่อสำเร็จ! Repository พร้อมใช้งาน'; }
+    else{ res.style.color='#8b2000'; res.textContent='❌ ไม่สำเร็จ ('+r.status+') ตรวจสอบ Token และ Repo อีกครั้ง'; }
+  }catch(e){ res.style.color='#8b2000'; res.textContent='❌ Error: '+e.message; }
+}
+
+async function syncToGithub(){
+  const cfg = getGhConfig();
+  if(!cfg.token||!cfg.user||!cfg.repo){ showGithubSettings(); return; }
+  const btn = document.getElementById('syncBtn');
+  btn.textContent='⏳ กำลัง Sync...'; btn.disabled=true;
+  try{
+    const data = JSON.stringify({monthsData, activeYYYYMM}, null, 2);
+    const b64 = btoa(unescape(encodeURIComponent(data)));
+    // ดึง SHA ของไฟล์เดิม (ถ้ามี)
+    let sha = '';
+    const getR = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${cfg.file}`,{
+      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
+    });
+    if(getR.ok){ const j=await getR.json(); sha=j.sha||''; }
+    // อัพโหลด
+    const body = {message:'Update payslip data '+new Date().toLocaleDateString('th-TH'), content:b64};
+    if(sha) body.sha = sha;
+    const putR = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${cfg.file}`,{
+      method:'PUT',
+      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if(putR.ok){
+      btn.textContent='✅ Synced!';
+      setTimeout(()=>{ btn.textContent='☁️ Sync'; btn.disabled=false; },2000);
+      document.getElementById('importStatus').textContent='☁️ Sync ขึ้น GitHub สำเร็จ '+new Date().toLocaleTimeString('th-TH');
+    } else {
+      const err=await putR.json();
+      throw new Error(err.message||putR.status);
+    }
+  }catch(e){
+    btn.textContent='❌ ล้มเหลว'; btn.disabled=false;
+    setTimeout(()=>{ btn.textContent='☁️ Sync'; },2000);
+    alert('Sync ไม่สำเร็จ: '+e.message);
+  }
+}
+
+async function loadFromGithub(){
+  const cfg = getGhConfig();
+  if(!cfg.token||!cfg.user||!cfg.repo) return false;
+  try{
+    const r = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${cfg.file}`,{
+      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
+    });
+    if(!r.ok) return false;
+    const j = await r.json();
+    const decoded = decodeURIComponent(escape(atob(j.content.replace(/\n/g,''))));
+    const parsed = JSON.parse(decoded);
+    if(!parsed.monthsData||Object.keys(parsed.monthsData).length===0) return false;
+    monthsData = parsed.monthsData;
+    saveToStorage(); // เซฟลง LocalStorage ด้วย
+    const ym = parsed.activeYYYYMM||Object.keys(monthsData).sort().pop();
+    setActiveMonth(ym, false);
+    renderMonthSelect();
+    document.getElementById('importStatus').textContent='☁️ โหลดข้อมูลจาก GitHub สำเร็จ';
+    return true;
+  }catch(e){ return false; }
+}
+
+function updateSyncBtn(){
+  const cfg = getGhConfig();
+  const btn = document.getElementById('syncBtn');
+  if(!btn) return;
+  if(cfg.token&&cfg.user&&cfg.repo){
+    btn.style.background='rgba(40,167,69,.8)';
+    btn.title='Sync ไปที่ '+cfg.user+'/'+cfg.repo;
+  } else {
+    btn.style.background='rgba(255,255,255,.15)';
+    btn.title='ตั้งค่า GitHub ก่อน';
+  }
+}
+
 function saveToStorage(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({monthsData, activeYYYYMM})); }catch(e){}
 }
@@ -738,10 +930,17 @@ function selectAll(){getFiltered().forEach(s=>selected.add(s.no));render();}
 function clearAll(){selected.clear();render();}
 document.getElementById('unitFilter').addEventListener('change',render);
 document.getElementById('searchInput').addEventListener('input',render);
-// โหลดข้อมูลจาก LocalStorage ตอนเริ่ม
-if(!loadFromStorage()){
-  // ไม่มีข้อมูล แสดง import panel ปกติ
-}
+// โหลดข้อมูลตอนเริ่ม: GitHub ก่อน → LocalStorage → แสดง import panel
+updateSyncBtn();
+(async()=>{
+  const fromGH = await loadFromGithub();
+  if(!fromGH){
+    const fromLS = loadFromStorage();
+    if(!fromLS){
+      // ไม่มีข้อมูล แสดง import panel ปกติ
+    }
+  }
+})();
 
 /* ===== PAYSLIP BUILDER ===== */
 function buildSlip(s, pageNo, cfg){
