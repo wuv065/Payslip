@@ -5,10 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ระบบใบเงินเดือนพลทหารกองประจำการ</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: url('https://db.onlinewebfonts.com/t/34b4b2b921f3f8a8b85a5c35d23f8e22.woff2') format('woff2'),
+       url('https://db.onlinewebfonts.com/t/34b4b2b921f3f8a8b85a5c35d23f8e22.woff') format('woff');
+}
+</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Sarabun',sans-serif;background:#e8e8e4;color:#222;font-size:15px;}
+body{font-family:'TH Sarabun PSK','Sarabun',sans-serif;background:#e8e8e4;color:#222;font-size:15px;}
 .topbar{background:#1a4f8a;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
 .topbar h1{font-size:17px;font-weight:700;}
 .topbar p{font-size:12px;opacity:.8;margin-top:2px;}
@@ -17,9 +24,9 @@ body{font-family:'Sarabun',sans-serif;background:#e8e8e4;color:#222;font-size:15
 .panel{background:#fff;border-radius:10px;border:1px solid #ccc;padding:16px;margin-bottom:14px;}
 .controls{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;}
 .field label{font-size:12px;color:#666;display:block;margin-bottom:4px;}
-select,input[type=text]{width:100%;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:14px;background:#fff;}
+select,input[type=text]{width:100%;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;background:#fff;}
 select:focus,input:focus{outline:2px solid #1a4f8a;border-color:#1a4f8a;}
-.btn{padding:7px 16px;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:14px;cursor:pointer;border:1px solid #bbb;background:#f4f4f0;color:#333;white-space:nowrap;}
+.btn{padding:7px 16px;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;cursor:pointer;border:1px solid #bbb;background:#f4f4f0;color:#333;white-space:nowrap;}
 .btn:hover{background:#e8e8e4;}
 .btn-primary{background:#1a4f8a;color:#fff;border-color:#1a4f8a;}
 .btn-primary:hover{background:#0d3d73;}
@@ -50,7 +57,7 @@ table.main tr:hover td{background:#f5f8fd;}
 .modal-body{padding:18px;}
 
 /* ===== PAYSLIP ===== */
-.slip-outer{font-family:'Sarabun',sans-serif;width:100%;max-width:640px;margin:0 auto;}
+.slip-outer{font-family:'TH Sarabun PSK','Sarabun',sans-serif;width:100%;max-width:640px;margin:0 auto;}
 .slip{width:100%;border-collapse:collapse;border:1.5px solid #333;font-size:13.5px;}
 .slip td,.slip th{border:1px solid #666;padding:4px 8px;vertical-align:middle;}
 .no-border{border:none !important;}
@@ -169,6 +176,7 @@ table.main tr:hover td{background:#f5f8fd;}
   <div class="actions no-print">
     <button class="btn btn-green" onclick="printSelected()">🖨️ พิมพ์ที่เลือก</button>
     <button class="btn btn-primary" onclick="printAll()">📄 พิมพ์ทั้งหมดในหน้า</button>
+    <button class="btn" onclick="printByUnit()" style="background:#5c3d8f;color:#fff;border-color:#5c3d8f;">📋 พิมพ์แยกกองร้อย</button>
     <span id="selectedCount" style="font-size:13px;color:#555;"></span>
   </div>
 </div>
@@ -508,7 +516,9 @@ function setActiveMonth(yyyymm, resetCfg){
   activeYYYYMM = yyyymm;
   soldiers = (monthsData[yyyymm]||{soldiers:[]}).soldiers;
   selected.clear();
-  units = [...new Set(soldiers.map(s=>s.unit))];
+  const UNIT_ORDER=['ร้อย.บก.','ร้อย.1','ร้อย.2','ร้อย.คม.','ทหารใหม่'];
+  const allUnits=[...new Set(soldiers.map(s=>s.unit))];
+  units = UNIT_ORDER.filter(u=>allUnits.includes(u)).concat(allUnits.filter(u=>!UNIT_ORDER.includes(u)));
   const uf = document.getElementById('unitFilter');
   uf.innerHTML = '<option value="all">— ทั้งหมด —</option>';
   units.forEach(u=>{const o=document.createElement('option');o.value=u;o.textContent=u;uf.appendChild(o);});
@@ -698,7 +708,10 @@ function render(){
       <td class="num">${fmt(s.salary)}</td><td class="num">${fmt(s.phck)}</td>
       <td class="num" style="color:${s.deduct>0?'#8b2000':'#aaa'}">${s.deduct>0?fmt(s.deduct):'-'}</td>
       <td class="num"><strong style="color:#1a4f8a;">${fmt(net)}</strong></td>
-      <td><button class="btn btn-sm" onclick="previewOne(${s.no})">👁 ดู</button></td>`;
+      <td style="display:flex;gap:4px;">
+        <button class="btn btn-sm" onclick="previewOne(${s.no})">👁 ดู</button>
+        <button class="btn btn-sm" onclick="editOne(${s.no})" style="background:#fff8e6;color:#7c5800;border-color:#f0d080;">✏️</button>
+      </td>`;
     tbody.appendChild(tr);
   });
   document.getElementById('masterCheck').checked=filtered.length>0&&filtered.every(s=>selected.has(s.no));
@@ -838,6 +851,62 @@ function buildSlip(s, pageNo, cfg){
 </div>`;
 }
 
+function editOne(no){
+  const s=soldiers.find(x=>x.no===no);
+  if(!s)return;
+  document.getElementById('modalTitle').textContent='✏️ แก้ไขข้อมูล — พลฯ '+s.fname+' '+s.lname;
+  document.getElementById('modalBody').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:14px;">
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">ชื่อ</label>
+        <input id="edit_fname" value="${s.fname}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">นามสกุล</label>
+        <input id="edit_lname" value="${s.lname}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">ระดับ/ขั้น</label>
+        <input id="edit_level" value="${s.level}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">หน่วย</label>
+        <select id="edit_unit" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;">
+          ${['ร้อย.บก.','ร้อย.1','ร้อย.2','ร้อย.คม.','ทหารใหม่'].map(u=>`<option value="${u}" ${u===s.unit?'selected':''}>${u}</option>`).join('')}
+        </select></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">เงินเดือน</label>
+        <input id="edit_salary" type="number" value="${s.salary}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">พชค.</label>
+        <input id="edit_phck" type="number" value="${s.phck}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">จำนวนเงินที่หัก</label>
+        <input id="edit_deduct" type="number" value="${s.deduct}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">เลขประจำตัว</label>
+        <input id="edit_id" value="${s.id}" style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-family:inherit;font-size:14px;"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+      <button class="btn" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveEdit(${no})">💾 บันทึก</button>
+    </div>`;
+  document.getElementById('modal').classList.add('open');
+}
+
+function saveEdit(no){
+  const s=soldiers.find(x=>x.no===no);
+  if(!s)return;
+  const unitFullMap={'ร้อย.บก.':'ร้อย.บก.พัน.ช.คมศ.พล.ช.','ร้อย.1':'ร้อย.ช.คมศ.ที่ 1','ร้อย.2':'ร้อย.ช.คมศ.ที่ 2','ร้อย.คม.':'ร้อย.ช.คม.และ ซบร.','ทหารใหม่':'ทหารใหม่'};
+  s.fname=document.getElementById('edit_fname').value.trim();
+  s.lname=document.getElementById('edit_lname').value.trim();
+  s.level=document.getElementById('edit_level').value.trim();
+  s.unit=document.getElementById('edit_unit').value;
+  s.unitFull=unitFullMap[s.unit]||s.unit;
+  s.salary=parseFloat(document.getElementById('edit_salary').value)||0;
+  s.phck=parseFloat(document.getElementById('edit_phck').value)||0;
+  s.deduct=parseFloat(document.getElementById('edit_deduct').value)||0;
+  s.id=document.getElementById('edit_id').value.trim();
+  // อัพเดท monthsData
+  if(activeYYYYMM&&monthsData[activeYYYYMM]){
+    const idx=monthsData[activeYYYYMM].soldiers.findIndex(x=>x.no===no);
+    if(idx>=0)monthsData[activeYYYYMM].soldiers[idx]=s;
+  }
+  saveToStorage();
+  closeModal();
+  render();
+  renderSummaryInline();
+}
+
 function previewOne(no){
   const s=soldiers.find(x=>x.no===no);
   document.getElementById('modalTitle').textContent=`ใบเงินเดือน — พลฯ ${s.fname} ${s.lname}`;
@@ -857,6 +926,28 @@ function printSelected(){
   const cfg=getCfg();
   openPrint(sel.map(s=>buildSlip(s,s.no,cfg)));
 }
+function printByUnit(){
+  const cfg=getCfg();
+  const UNIT_ORDER=['ร้อย.บก.','ร้อย.1','ร้อย.2','ร้อย.คม.','ทหารใหม่'];
+  const allUnits=[...new Set(soldiers.map(s=>s.unit))];
+  const orderedUnits=UNIT_ORDER.filter(u=>allUnits.includes(u)).concat(allUnits.filter(u=>!UNIT_ORDER.includes(u)));
+  // สร้าง slip ทีละกองร้อย มีหน้าปั่น (cover) คั่นกลาง
+  const slips=[];
+  orderedUnits.forEach(unit=>{
+    const list=soldiers.filter(s=>s.unit===unit);
+    if(!list.length)return;
+    // หน้าปกกองร้อย
+    slips.push(`<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180mm;flex-direction:column;text-align:center;border:2px solid #333;padding:20mm;">
+      <div style="font-size:22pt;font-weight:700;margin-bottom:12px;">ใบจ่ายเงินเดือนทหารกองประจำการ</div>
+      <div style="font-size:18pt;margin-bottom:8px;">เดือน${cfg.month} ${cfg.year}</div>
+      <div style="font-size:20pt;font-weight:700;color:#1a4f8a;margin-top:16px;">${unit}</div>
+      <div style="font-size:14pt;margin-top:8px;color:#555;">${list.length} นาย</div>
+    </div>`);
+    list.forEach((s,i)=>slips.push(buildSlip(s,i+1,cfg)));
+  });
+  openPrint(slips);
+}
+
 function printAll(){
   const list=getFiltered(), cfg=getCfg();
   openPrint(list.map(s=>buildSlip(s,s.no,cfg)));
@@ -866,8 +957,15 @@ function openPrint(slips){
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: url('https://db.onlinewebfonts.com/t/34b4b2b921f3f8a8b85a5c35d23f8e22.woff2') format('woff2'),
+       url('https://db.onlinewebfonts.com/t/34b4b2b921f3f8a8b85a5c35d23f8e22.woff') format('woff');
+}
+</style>
+<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Sarabun',sans-serif;background:#fff;}
+body{font-family:'TH Sarabun PSK','Sarabun',sans-serif;background:#fff;}
 .slip-page{padding:8mm 10mm;page-break-after:always;}
 .slip-page:last-child{page-break-after:auto;}
 .slip-outer{max-width:170mm;margin:0 auto;}
