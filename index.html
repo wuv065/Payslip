@@ -712,11 +712,17 @@ function setActiveMonth(yyyymm, resetCfg){
   const allUnits=[...new Set(soldiers.map(s=>s.unit))];
   units = UNIT_ORDER.filter(u=>allUnits.includes(u)).concat(allUnits.filter(u=>!UNIT_ORDER.includes(u)));
   const uf = document.getElementById('unitFilter');
-  uf.innerHTML = '<option value="all">— ทั้งหมด —</option>';
-  units.forEach(u=>{const o=document.createElement('option');o.value=u;o.textContent=u;uf.appendChild(o);});
-  document.getElementById('importPanel').style.display='none';
-  document.getElementById('mainUI').style.display='block';
-  document.getElementById('topbarSub').textContent = soldiers.length+' คน — '+units.join(', ');
+  if(uf){
+    uf.innerHTML = '<option value="all">— ทั้งหมด —</option>';
+    units.forEach(u=>{const o=document.createElement('option');o.value=u;o.textContent=u;uf.appendChild(o);});
+  }
+  // ซ่อน importPanel, โชว์ mainUI เสมอ
+  const ip = document.getElementById('importPanel');
+  const mu = document.getElementById('mainUI');
+  if(ip) ip.style.display='none';
+  if(mu) mu.style.display='block';
+  const ts = document.getElementById('topbarSub');
+  if(ts) ts.textContent = soldiers.length+' คน — '+units.join(', ');
   render();
   renderSummaryInline();
 }
@@ -932,15 +938,17 @@ document.getElementById('unitFilter').addEventListener('change',render);
 document.getElementById('searchInput').addEventListener('input',render);
 // โหลดข้อมูลตอนเริ่ม: GitHub ก่อน → LocalStorage → แสดง import panel
 updateSyncBtn();
-(async()=>{
-  const fromGH = await loadFromGithub();
-  if(!fromGH){
-    const fromLS = loadFromStorage();
-    if(!fromLS){
-      // ไม่มีข้อมูล แสดง import panel ปกติ
+window.addEventListener('DOMContentLoaded', ()=>{
+  (async()=>{
+    const fromGH = await loadFromGithub();
+    if(!fromGH){
+      const fromLS = loadFromStorage();
+      if(!fromLS){
+        // ไม่มีข้อมูล แสดง import panel ปกติ
+      }
     }
-  }
-})();
+  })();
+});
 
 /* ===== PAYSLIP BUILDER ===== */
 function buildSlip(s, pageNo, cfg){
