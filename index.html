@@ -326,11 +326,11 @@ async function testGhConnection(){
   }catch(e){ res.style.color='#8b2000'; res.textContent='❌ Error: '+e.message; }
 }
 
-async function syncToGithub(){
+async function syncToGithub(silent=false){
   const cfg = getGhConfig();
-  if(!cfg.token||!cfg.user||!cfg.repo){ showGithubSettings(); return; }
+  if(!cfg.token||!cfg.user||!cfg.repo){ if(!silent)showGithubSettings(); return; }
   const btn = document.getElementById('syncBtn');
-  btn.textContent='⏳ กำลัง Sync...'; btn.disabled=true;
+  if(btn){ btn.textContent='⏳ Syncing...'; btn.disabled=true; }
   try{
     const data = JSON.stringify({monthsData, activeYYYYMM}, null, 2);
     const b64 = btoa(unescape(encodeURIComponent(data)));
@@ -349,17 +349,16 @@ async function syncToGithub(){
       body: JSON.stringify(body)
     });
     if(putR.ok){
-      btn.textContent='✅ Synced!';
-      setTimeout(()=>{ btn.textContent='☁️ Sync'; btn.disabled=false; },2000);
-      document.getElementById('importStatus').textContent='☁️ Sync ขึ้น GitHub สำเร็จ '+new Date().toLocaleTimeString('th-TH');
+      if(btn){ btn.textContent='✅ Synced!'; setTimeout(()=>{ btn.textContent='☁️ Sync'; btn.disabled=false; },2000); }
+      const st=document.getElementById('importStatus');
+      if(st) st.textContent='☁️ Auto-synced '+new Date().toLocaleTimeString('th-TH');
     } else {
       const err=await putR.json();
       throw new Error(err.message||putR.status);
     }
   }catch(e){
-    btn.textContent='❌ ล้มเหลว'; btn.disabled=false;
-    setTimeout(()=>{ btn.textContent='☁️ Sync'; },2000);
-    alert('Sync ไม่สำเร็จ: '+e.message);
+    if(btn){ btn.textContent='❌'; btn.disabled=false; setTimeout(()=>{ btn.textContent='☁️ Sync'; },3000); }
+    if(!silent) alert('Sync ไม่สำเร็จ: '+e.message);
   }
 }
 
@@ -398,8 +397,16 @@ function updateSyncBtn(){
   }
 }
 
-function saveToStorage(){
+let _syncTimer = null;
+function saveToStorage(autoSync=true){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({monthsData, activeYYYYMM})); }catch(e){}
+  // Auto sync ขึ้น GitHub (debounce 3 วินาที)
+  if(autoSync && getGhConfig().token){
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(()=>{
+      syncToGithub(true); // silent mode
+    }, 3000);
+  }
 }
 function loadFromStorage(){
   try{
