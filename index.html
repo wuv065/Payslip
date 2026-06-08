@@ -100,13 +100,41 @@ table.main tr:hover td{background:#f5f8fd;}
   </div>
 </div>
 
-<div style="background:#0d3d73;border-top:1px solid rgba(255,255,255,.15);">
-  <div style="max-width:1180px;margin:0 auto;padding:0 14px;display:flex;gap:0;">
-    <button id="tabSalary" onclick="switchTab('salary')" style="padding:10px 28px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:15px;border:none;cursor:pointer;background:#185FA5;color:#fff;font-weight:700;border-bottom:3px solid #fff;">💰 เงินเดือน</button>
-    <button id="tabBia" onclick="switchTab('bia')" style="padding:10px 28px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;">🍽️ เบี้ยเลี้ยง</button>
+<div id="tabBar" style="background:#0d3d73;border-top:1px solid rgba(255,255,255,.15);display:none;">
+  <div style="max-width:1180px;margin:0 auto;padding:0 14px;display:flex;align-items:center;gap:0;">
+    <button onclick="goHome()" style="padding:10px 16px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.8);border-bottom:3px solid transparent;">← หน้าหลัก</button>
+    <div style="width:1px;height:20px;background:rgba(255,255,255,.2);margin:0 4px;"></div>
+    <button id="tabSalary" onclick="switchTab('salary')" style="padding:10px 24px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;">💰 เงินเดือน</button>
+    <button id="tabBia" onclick="switchTab('bia')" style="padding:10px 24px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;">🍽️ เบี้ยเลี้ยง</button>
   </div>
 </div>
-<div class="container" id="salarySection">
+<!-- ===== LANDING PAGE ===== -->
+<div id="landingPage" style="max-width:900px;margin:60px auto;padding:20px 16px;">
+  <div style="text-align:center;margin-bottom:48px;">
+    <div style="font-size:22px;font-weight:700;color:#1a4f8a;margin-bottom:8px;">พัน.ช.คมศ.พล.ช.</div>
+    <div style="font-size:15px;color:#888;">เลือกระบบที่ต้องการใช้งาน</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:600px;margin:0 auto;">
+    <!-- เงินเดือน -->
+    <div onclick="switchTab('salary')" style="background:#fff;border-radius:16px;border:2px solid #c5d8f0;padding:40px 24px;text-align:center;cursor:pointer;transition:all .2s;box-shadow:0 2px 12px rgba(0,0,0,.06);"
+      onmouseover="this.style.borderColor='#1a4f8a';this.style.boxShadow='0 4px 24px rgba(26,79,138,.15)';this.style.transform='translateY(-2px)'"
+      onmouseout="this.style.borderColor='#c5d8f0';this.style.boxShadow='0 2px 12px rgba(0,0,0,.06)';this.style.transform='translateY(0)'">
+      <div style="font-size:52px;margin-bottom:16px;">💰</div>
+      <div style="font-size:20px;font-weight:700;color:#1a4f8a;margin-bottom:8px;">เงินเดือน</div>
+      <div style="font-size:13px;color:#888;line-height:1.6;">จัดการและพิมพ์<br>ใบเงินเดือนพลทหาร</div>
+    </div>
+    <!-- เบี้ยเลี้ยง -->
+    <div onclick="switchTab('bia')" style="background:#fff;border-radius:16px;border:2px solid #c5d8f0;padding:40px 24px;text-align:center;cursor:pointer;transition:all .2s;box-shadow:0 2px 12px rgba(0,0,0,.06);"
+      onmouseover="this.style.borderColor='#3B6D11';this.style.boxShadow='0 4px 24px rgba(59,109,17,.15)';this.style.transform='translateY(-2px)'"
+      onmouseout="this.style.borderColor='#c5d8f0';this.style.boxShadow='0 2px 12px rgba(0,0,0,.06)';this.style.transform='translateY(0)'">
+      <div style="font-size:52px;margin-bottom:16px;">🍽️</div>
+      <div style="font-size:20px;font-weight:700;color:#3B6D11;margin-bottom:8px;">เบี้ยเลี้ยง</div>
+      <div style="font-size:13px;color:#888;line-height:1.6;">คำนวณและ Export<br>ยอดโอนเบี้ยเลี้ยง</div>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="salarySection" style="display:none;">
 
 <div id="importPanel" class="panel">
   <p style="font-size:13px;color:#555;margin-bottom:10px;font-weight:600;">📌 โหลดข้อมูลจากไฟล์ Excel หรือใช้ข้อมูลตัวอย่าง</p>
@@ -193,6 +221,8 @@ table.main tr:hover td{background:#f5f8fd;}
 </div>
 
 <!-- Modal -->
+</div><!-- /salarySection -->
+
 <!-- ===== SECTION เบี้ยเลี้ยง ===== -->
 <div id="biaSection" style="display:none;max-width:1180px;margin:0 auto;padding:20px 14px;">
   <div style="background:#fff;border-radius:10px;border:1px solid #ccc;padding:16px;margin-bottom:14px;" class="no-print">
@@ -216,7 +246,7 @@ table.main tr:hover td{background:#f5f8fd;}
         <input id="biaDeductRate" type="number" value="70" style="width:80px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;" onchange="recalcBia()">
       </div>
       <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">วันตั้งต้น</label>
-        <input id="biaDaysDefault" type="number" value="10" style="width:70px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;" onchange="applyDefaultDays()">
+        <input id="biaDaysDefault" type="number" value="10" readonly style="width:70px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;background:#f8f8f5;cursor:default;" title="คำนวณอัตโนมัติตามเดือน" style="width:70px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;">
       </div>
     </div>
     <div id="biaSummary" style="display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:#eef3fa;border-radius:8px;border:1px solid #c5d8f0;font-size:13.5px;"></div>
@@ -781,11 +811,19 @@ function setActiveMonth(yyyymm, resetCfg){
     uf.innerHTML = '<option value="all">— ทั้งหมด —</option>';
     units.forEach(u=>{const o=document.createElement('option');o.value=u;o.textContent=u;uf.appendChild(o);});
   }
-  // ซ่อน importPanel, โชว์ mainUI เสมอ
+  // ซ่อน importPanel
   const ip = document.getElementById('importPanel');
-  const mu = document.getElementById('mainUI');
   if(ip) ip.style.display='none';
-  if(mu) mu.style.display='block';
+  // ถ้ายังไม่ได้เลือก tab → โชว์ landing
+  const lp2 = document.getElementById('landingPage');
+  const ss = document.getElementById('salarySection');
+  const bs = document.getElementById('biaSection');
+  const isLandingVisible = lp2&&lp2.style.display!=='none';
+  const isSalaryVisible = ss&&ss.style.display==='block';
+  const isBiaVisible = bs&&bs.style.display==='block';
+  if(!isSalaryVisible&&!isBiaVisible){
+    if(lp2) lp2.style.display='block';
+  }
   const ts = document.getElementById('topbarSub');
   if(ts) ts.textContent = soldiers.length+' คน — '+units.join(', ');
   render();
@@ -1260,25 +1298,41 @@ ${slips.map(s=>`<div class="slip-page">${s}</div>`).join('')}
 let biaData = {}; // { yyyymm: { period: { soldierNo: {days, deductDays, extra} } } }
 let currentBiaSoldiers = [];
 
-const STYLE_ACTIVE='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:#185FA5;color:#fff;font-weight:700;border-bottom:3px solid #fff;';
-const STYLE_INACTIVE='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;';
+const STYLE_TAB_ACTIVE='padding:10px 24px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:#185FA5;color:#fff;font-weight:700;border-bottom:3px solid #fff;';
+const STYLE_TAB_INACTIVE='padding:10px 24px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;';
+
+function goHome(){
+  const lp=document.getElementById('landingPage');
+  const salary=document.getElementById('salarySection');
+  const bia=document.getElementById('biaSection');
+  const tb=document.getElementById('tabBar');
+  if(lp) lp.style.display='block';
+  if(salary) salary.style.display='none';
+  if(bia) bia.style.display='none';
+  if(tb) tb.style.display='none';
+}
 
 function switchTab(tab){
+  const lp     = document.getElementById('landingPage');
   const salary = document.getElementById('salarySection');
   const bia    = document.getElementById('biaSection');
   const tS     = document.getElementById('tabSalary');
   const tB     = document.getElementById('tabBia');
-  if(!salary||!bia||!tS||!tB) return; // guard
+  const tb     = document.getElementById('tabBar');
+  if(!salary||!bia||!tS||!tB) return;
+  // ซ่อน landing
+  if(lp) lp.style.display='none';
+  if(tb) tb.style.display='block';
   if(tab==='salary'){
-    salary.style.display='';
+    salary.style.display='block';
     bia.style.display='none';
-    tS.style.cssText=STYLE_ACTIVE;
-    tB.style.cssText=STYLE_INACTIVE;
+    tS.style.cssText=STYLE_TAB_ACTIVE;
+    tB.style.cssText=STYLE_TAB_INACTIVE;
   } else {
     salary.style.display='none';
     bia.style.display='block';
-    tB.style.cssText=STYLE_ACTIVE;
-    tS.style.cssText=STYLE_INACTIVE;
+    tB.style.cssText=STYLE_TAB_ACTIVE;
+    tS.style.cssText=STYLE_TAB_INACTIVE;
     updateBiaMonthList();
     const mSel=document.getElementById('biaMonthSel');
     if(mSel&&!mSel.value&&activeYYYYMM) mSel.value=activeYYYYMM;
@@ -1329,7 +1383,14 @@ function getBiaSoldierData(no, ym, p){
   if(!biaData[ym]) biaData[ym]={};
   if(!biaData[ym][p]) biaData[ym][p]={};
   if(!biaData[ym][p][no]){
-    const defDays=parseInt(document.getElementById('biaDaysDefault').value)||10;
+    // คำนวณวันตั้งต้นจากเดือนจริง
+    let defDays=10;
+    if(p==='3'){
+      const mon=ym?parseInt(ym.slice(-2)):0;
+      const yrCE=ym?parseInt(ym.slice(0,-2))-543:2024;
+      const lastDay=mon>0?new Date(yrCE,mon,0).getDate():31;
+      defDays=lastDay-20;
+    }
     biaData[ym][p][no]={days:defDays, deductDays:defDays, extra:0};
   }
   return biaData[ym][p][no];
