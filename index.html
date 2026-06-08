@@ -1455,10 +1455,10 @@ function applyDefaultDays(){
   if(!biaData[ym]) biaData[ym]={};
   if(!biaData[ym][p]) biaData[ym][p]={};
   currentBiaSoldiers.forEach(s=>{
-    if(!biaData[ym][p][s.no]) biaData[ym][p][s.no]={};
-    biaData[ym][p][s.no].days=defDays;
-    biaData[ym][p][s.no].deductDays=defDays;
-    biaData[ym][p][s.no].extra=biaData[ym][p][s.no].extra||0;
+    if(!biaData[ym][p][s.id]) biaData[ym][p][s.id]={};
+    biaData[ym][p][s.id].days=defDays;
+    biaData[ym][p][s.id].deductDays=defDays;
+    biaData[ym][p][s.id].extra=biaData[ym][p][s.id].extra||0;
   });
   loadBiaData();
 }
