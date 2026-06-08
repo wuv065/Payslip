@@ -206,7 +206,7 @@ table.main tr:hover td{background:#f5f8fd;}
         <select id="biaPeriodSel" style="padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;" onchange="onPeriodChange()">
           <option value="1">งวด 1 (1-10)</option>
           <option value="2">งวด 2 (11-20)</option>
-          <option value="3">งวด 3 (21-31)</option>
+          <option value="3">งวด 3 (21-สิ้นเดือน)</option>
         </select>
       </div>
       <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">อัตราเบิก (บ./วัน)</label>
@@ -1285,15 +1285,25 @@ function switchTab(tab){
     const pSel=document.getElementById('biaPeriodSel');
     const pv=(pSel&&pSel.value)||'1';
     const daysEl=document.getElementById('biaDaysDefault');
-    if(daysEl) daysEl.value=({'1':10,'2':10,'3':11}[pv]||10);
+    if(daysEl) daysEl.value=getDefaultDays(pv);
     loadBiaData();
   }
 }
 
+function getDefaultDays(p){
+  if(p!=='3') return 10;
+  // คำนวณวันงวด 3 ตามเดือนจริง
+  const ym=(document.getElementById('biaMonthSel')&&document.getElementById('biaMonthSel').value)||activeYYYYMM||'';
+  const mon=ym?parseInt(ym.slice(-2)):0;
+  const yrCE=ym?parseInt(ym.slice(0,-2))-543:2024;
+  const lastDay=mon>0?new Date(yrCE,mon,0).getDate():31;
+  return lastDay-20;
+}
+
 function onPeriodChange(){
   const p=document.getElementById('biaPeriodSel').value;
-  const defMap={'1':10,'2':10,'3':11};
-  document.getElementById('biaDaysDefault').value=defMap[p]||10;
+  const dEl=document.getElementById('biaDaysDefault');
+  if(dEl) dEl.value=getDefaultDays(p);
   loadBiaData();
 }
 
@@ -1410,7 +1420,7 @@ function loadBiaData(){
     <td style="padding:8px 10px;text-align:right;color:#1a4f8a;">${fmt(totTransfer)}</td>`;
   tbody.appendChild(tfoot);
   // summary bar
-  const periodLabel=['','งวด 1 (1-10)','งวด 2 (11-20)','งวด 3 (21-31)'][p];
+  const periodLabel=['','งวด 1 (1-10)','งวด 2 (11-20)','งวด 3 (21-สิ้นเดือน)'][p]||'งวด '+p;
   document.getElementById('biaSummary').innerHTML=`
     <div><small style="color:#666;display:block;font-size:11px;">งวด</small><strong>${periodLabel}</strong></div>
     <div><small style="color:#666;display:block;font-size:11px;">ยอดเบิกรวม</small><strong>${fmt(totEarn)}</strong></div>
