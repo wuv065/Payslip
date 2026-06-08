@@ -106,7 +106,7 @@ table.main tr:hover td{background:#f5f8fd;}
     <button id="tabBia" onclick="switchTab('bia')" style="padding:10px 28px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;">🍽️ เบี้ยเลี้ยง</button>
   </div>
 </div>
-<div class="container">
+<div class="container" id="salarySection">
 
 <div id="importPanel" class="panel">
   <p style="font-size:13px;color:#555;margin-bottom:10px;font-weight:600;">📌 โหลดข้อมูลจากไฟล์ Excel หรือใช้ข้อมูลตัวอย่าง</p>
@@ -193,6 +193,58 @@ table.main tr:hover td{background:#f5f8fd;}
 </div>
 
 <!-- Modal -->
+<!-- ===== SECTION เบี้ยเลี้ยง ===== -->
+<div id="biaSection" style="display:none;max-width:1180px;margin:0 auto;padding:20px 14px;">
+  <div style="background:#fff;border-radius:10px;border:1px solid #ccc;padding:16px;margin-bottom:14px;" class="no-print">
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">เดือน</label>
+        <select id="biaMonthSel" style="padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;" onchange="loadBiaData()">
+          <option value="">— เลือกเดือน —</option>
+        </select>
+      </div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">งวด</label>
+        <select id="biaPeriodSel" style="padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;" onchange="onPeriodChange()">
+          <option value="1">งวด 1 (1-10)</option>
+          <option value="2">งวด 2 (11-20)</option>
+          <option value="3">งวด 3 (21-31)</option>
+        </select>
+      </div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">อัตราเบิก (บ./วัน)</label>
+        <input id="biaRate" type="number" value="96" style="width:80px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;" onchange="recalcBia()">
+      </div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">หักค่าประกอบ (บ./วัน)</label>
+        <input id="biaDeductRate" type="number" value="70" style="width:80px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;" onchange="recalcBia()">
+      </div>
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">วันตั้งต้น</label>
+        <input id="biaDaysDefault" type="number" value="10" style="width:70px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;" onchange="applyDefaultDays()">
+      </div>
+    </div>
+    <div id="biaSummary" style="display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:#eef3fa;border-radius:8px;border:1px solid #c5d8f0;font-size:13.5px;"></div>
+  </div>
+  <div style="background:#fff;border-radius:10px;border:1px solid #ccc;overflow:auto;margin-bottom:14px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
+      <thead>
+        <tr style="background:#f0f0eb;">
+          <th style="padding:9px 10px;text-align:left;border-bottom:1.5px solid #bbb;width:35px;">#</th>
+          <th style="padding:9px 10px;text-align:left;border-bottom:1.5px solid #bbb;min-width:150px;">ชื่อ-สกุล</th>
+          <th style="padding:9px 10px;text-align:left;border-bottom:1.5px solid #bbb;width:85px;">หน่วย</th>
+          <th style="padding:9px 10px;text-align:center;border-bottom:1.5px solid #bbb;width:72px;">วันเบิก</th>
+          <th style="padding:9px 10px;text-align:right;border-bottom:1.5px solid #bbb;width:88px;">ยอดเบิก</th>
+          <th style="padding:9px 10px;text-align:center;border-bottom:1.5px solid #bbb;width:80px;">วันหักอาหาร</th>
+          <th style="padding:9px 10px;text-align:right;border-bottom:1.5px solid #bbb;width:90px;">หักค่าประกอบ</th>
+          <th style="padding:9px 10px;text-align:right;border-bottom:1.5px solid #bbb;width:88px;">หักอื่นๆ</th>
+          <th style="padding:9px 10px;text-align:right;border-bottom:1.5px solid #bbb;width:98px;color:#1a4f8a;">ยอดโอนทหาร</th>
+        </tr>
+      </thead>
+      <tbody id="biaBody"></tbody>
+    </table>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;" class="no-print">
+    <button onclick="exportBiaExcel(1)" style="padding:8px 18px;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;cursor:pointer;background:#3B6D11;color:#fff;border:none;">📥 Export โอนทหาร (.xlsx)</button>
+    <button onclick="exportBiaExcel(2)" style="padding:8px 18px;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;cursor:pointer;background:#1a4f8a;color:#fff;border:none;">📥 Export โอนค่าประกอบ (.xlsx)</button>
+  </div>
+</div>
+
 <div class="modal-bg no-print" id="modal">
   <div class="modal">
     <div class="modal-header">
@@ -1208,22 +1260,41 @@ ${slips.map(s=>`<div class="slip-page">${s}</div>`).join('')}
 let biaData = {}; // { yyyymm: { period: { soldierNo: {days, deductDays, extra} } } }
 let currentBiaSoldiers = [];
 
+const STYLE_ACTIVE='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:#185FA5;color:#fff;font-weight:700;border-bottom:3px solid #fff;';
+const STYLE_INACTIVE='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;';
+
 function switchTab(tab){
-  const salary = document.querySelector('.container');
-  const bia = document.getElementById('biaSection');
-  const tS = document.getElementById('tabSalary');
-  const tB = document.getElementById('tabBia');
+  const salary = document.getElementById('salarySection');
+  const bia    = document.getElementById('biaSection');
+  const tS     = document.getElementById('tabSalary');
+  const tB     = document.getElementById('tabBia');
+  if(!salary||!bia||!tS||!tB) return; // guard
   if(tab==='salary'){
-    salary.style.display=''; bia.style.display='none';
-    tS.style.cssText='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:#185FA5;color:#fff;font-weight:700;border-bottom:3px solid #fff;';
-    tB.style.cssText='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;';
+    salary.style.display='';
+    bia.style.display='none';
+    tS.style.cssText=STYLE_ACTIVE;
+    tB.style.cssText=STYLE_INACTIVE;
   } else {
-    salary.style.display='none'; bia.style.display='block';
-    tB.style.cssText='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:#185FA5;color:#fff;font-weight:700;border-bottom:3px solid #fff;';
-    tS.style.cssText='padding:10px 28px;font-family:"TH Sarabun PSK","Sarabun",sans-serif;font-size:15px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.7);font-weight:400;border-bottom:3px solid transparent;';
+    salary.style.display='none';
+    bia.style.display='block';
+    tB.style.cssText=STYLE_ACTIVE;
+    tS.style.cssText=STYLE_INACTIVE;
     updateBiaMonthList();
+    const mSel=document.getElementById('biaMonthSel');
+    if(mSel&&!mSel.value&&activeYYYYMM) mSel.value=activeYYYYMM;
+    const pSel=document.getElementById('biaPeriodSel');
+    const pv=(pSel&&pSel.value)||'1';
+    const daysEl=document.getElementById('biaDaysDefault');
+    if(daysEl) daysEl.value=({'1':10,'2':10,'3':11}[pv]||10);
     loadBiaData();
   }
+}
+
+function onPeriodChange(){
+  const p=document.getElementById('biaPeriodSel').value;
+  const defMap={'1':10,'2':10,'3':11};
+  document.getElementById('biaDaysDefault').value=defMap[p]||10;
+  loadBiaData();
 }
 
 function updateBiaMonthList(){
@@ -1239,8 +1310,8 @@ function updateBiaMonthList(){
 }
 
 function getBiaKey(){
-  const ym=document.getElementById('biaMonthSel').value||activeYYYYMM;
-  const p=document.getElementById('biaPeriodSel').value;
+  const ym=(document.getElementById('biaMonthSel')&&document.getElementById('biaMonthSel').value)||activeYYYYMM||Object.keys(monthsData).sort().pop()||'';
+  const p=(document.getElementById('biaPeriodSel')&&document.getElementById('biaPeriodSel').value)||'1';
   return {ym,p};
 }
 
@@ -1270,22 +1341,34 @@ function applyDefaultDays(){
 
 function recalcBia(){ loadBiaData(); }
 
+function safeGet(id){ return document.getElementById(id); }
+
 function loadBiaData(){
   const {ym,p}=getBiaKey();
-  if(!ym){ document.getElementById('biaBody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:#888;">กรุณาเลือกเดือน</td></tr>'; return; }
-  const soldiers_list = (monthsData[ym]||{soldiers:[]}).soldiers;
+  const finalYm = ym || activeYYYYMM;
+  if(!finalYm||!monthsData[finalYm]){
+    document.getElementById('biaBody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:#888;">ไม่มีข้อมูล — กรุณา Import Excel เดือนเงินเดือนก่อน</td></tr>';
+    return;
+  }
+  // override ym
+  if(!ym&&document.getElementById('biaMonthSel')){
+    document.getElementById('biaMonthSel').value=finalYm;
+  }
+  const soldiers_list = (monthsData[finalYm]||{soldiers:[]}).soldiers;
   const UNIT_ORDER=['ร้อย.บก.','ร้อย.1','ร้อย.2','ร้อย.คม.','ทหารใหม่'];
   currentBiaSoldiers = [...soldiers_list].sort((a,b)=>{
     const ai=UNIT_ORDER.indexOf(a.unit), bi=UNIT_ORDER.indexOf(b.unit);
     return ai-bi || a.no-b.no;
   });
-  const rate=parseFloat(document.getElementById('biaRate').value)||96;
-  const deductRate=parseFloat(document.getElementById('biaDeductRate').value)||70;
+  const rateEl=document.getElementById('biaRate');
+  const deductRateEl=document.getElementById('biaDeductRate');
   const tbody=document.getElementById('biaBody');
+  const rate=rateEl?parseFloat(rateEl.value)||96:96;
+  const deductRate=deductRateEl?parseFloat(deductRateEl.value)||70:70;
   tbody.innerHTML='';
   let totEarn=0, totFood=0, totExtra=0, totTransfer=0;
   currentBiaSoldiers.forEach((s,i)=>{
-    const d=getBiaSoldierData(s.no,ym,p);
+    const d=getBiaSoldierData(s.no,finalYm,p);
     const earn=rate*d.days;
     const foodDeduct=deductRate*d.deductDays;
     const extra=d.extra||0;
@@ -1299,17 +1382,17 @@ function loadBiaData(){
       <td style="padding:7px 10px;"><span style="font-size:11px;padding:2px 7px;border-radius:20px;background:#ddeaf7;color:#0d3d73;">${s.unit}</span></td>
       <td style="padding:7px 4px;text-align:center;">
         <input type="number" value="${d.days}" min="0" max="31" style="width:56px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:13px;"
-          onchange="updateBia(${s.no},'days',this.value,'${ym}','${p}')">
+          onchange="updateBia(${s.no},'days',this.value,'${finalYm}','${p}')">
       </td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(earn)}</td>
       <td style="padding:7px 4px;text-align:center;">
         <input type="number" value="${d.deductDays}" min="0" max="31" style="width:56px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:13px;"
-          onchange="updateBia(${s.no},'deductDays',this.value,'${ym}','${p}')">
+          onchange="updateBia(${s.no},'deductDays',this.value,'${finalYm}','${p}')">
       </td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#8b2000;">${fmt(foodDeduct)}</td>
       <td style="padding:7px 4px;text-align:right;">
         <input type="number" value="${extra}" min="0" style="width:76px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;text-align:right;font-size:13px;"
-          onchange="updateBia(${s.no},'extra',this.value,'${ym}','${p}')">
+          onchange="updateBia(${s.no},'extra',this.value,'${finalYm}','${p}')">
       </td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#1a4f8a;">${fmt(transfer)}</td>`;
     tbody.appendChild(tr);
@@ -1343,8 +1426,8 @@ function updateBia(no, field, val, ym, p){
   if(!biaData[ym][p][no]) biaData[ym][p][no]={days:10,deductDays:10,extra:0};
   biaData[ym][p][no][field]=parseFloat(val)||0;
   // recalc summary only (ไม่ re-render ทั้งตาราง เพื่อไม่เสีย focus)
-  const rate=parseFloat(document.getElementById('biaRate').value)||96;
-  const deductRate=parseFloat(document.getElementById('biaDeductRate').value)||70;
+  const rate=parseFloat((document.getElementById('biaRate')||{value:96}).value)||96;
+  const deductRate=parseFloat((document.getElementById('biaDeductRate')||{value:70}).value)||70;
   const {ym:cym,p:cp}=getBiaKey();
   let totEarn=0,totFood=0,totExtra=0,totTransfer=0;
   currentBiaSoldiers.forEach(s=>{
@@ -1378,7 +1461,7 @@ function exportBiaExcel(type){
   if(!ym){ alert('กรุณาเลือกเดือน'); return; }
   const rate=parseFloat(document.getElementById('biaRate').value)||96;
   const deductRate=parseFloat(document.getElementById('biaDeductRate').value)||70;
-  const md=monthsData[ym];
+  const ym2=ym||activeYYYYMM; const md=monthsData[ym2];
   const periodLabel=['','งวด1_1-10','งวด2_11-20','งวด3_21-31'][p];
   const wb=XLSX.utils.book_new();
   let rows=[], filename='';
@@ -1386,7 +1469,7 @@ function exportBiaExcel(type){
     // โอนให้ทหาร
     filename=`โอนทหาร_${md.label}_${periodLabel}.xlsx`;
     currentBiaSoldiers.forEach(s=>{
-      const d=getBiaSoldierData(s.no,ym,p);
+      const d=getBiaSoldierData(s.no,finalYm,p);
       const earn=rate*d.days, food=deductRate*d.deductDays, extra=d.extra||0;
       const transfer=earn-food-extra;
       if(transfer>0){
@@ -1401,7 +1484,7 @@ function exportBiaExcel(type){
     filename=`โอนคาประกอบ_${md.label}_${periodLabel}.xlsx`;
     let totFood=0;
     currentBiaSoldiers.forEach(s=>{
-      const d=getBiaSoldierData(s.no,ym,p);
+      const d=getBiaSoldierData(s.no,finalYm,p);
       totFood+=deductRate*d.deductDays;
     });
     rows=[['006','7360587484','ค่าประกอบเลี้ยง พัน.ช.คมศ.พล.ช.',totFood]];
