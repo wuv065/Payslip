@@ -421,7 +421,7 @@ async function syncToGithub(silent=false){
   if(btn){ btn.textContent='⏳ Syncing...'; btn.disabled=true; }
   try{
     const data = JSON.stringify({monthsData, activeYYYYMM}, null, 2);
-    const b64 = btoa(unescape(encodeURIComponent(data)));
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(data)));
     // ดึง SHA ของไฟล์เดิม (ถ้ามี)
     let sha = '';
     const getR = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${cfg.file}`,{
@@ -459,11 +459,17 @@ async function loadFromGithub(){
     });
     if(!r.ok) return false;
     const j = await r.json();
-    const decoded = decodeURIComponent(escape(atob(j.content.replace(/\n/g,''))));
+    const bytes=atob(j.content.replace(/\n/g,''));const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const decoded=new TextDecoder().decode(arr);
     const parsed = JSON.parse(decoded);
     if(!parsed.monthsData||Object.keys(parsed.monthsData).length===0) return false;
-    monthsData = parsed.monthsData;
-    saveToStorage(); // เซฟลง LocalStorage ด้วย
+    if(Object.keys(monthsData).length>0){
+      Object.keys(parsed.monthsData).forEach(ym=>{
+        if(!monthsData[ym]) monthsData[ym]=parsed.monthsData[ym];
+      });
+    } else {
+      monthsData=parsed.monthsData;
+    }
+    saveToStorage();
     const ym = parsed.activeYYYYMM||Object.keys(monthsData).sort().pop();
     setActiveMonth(ym, false);
     renderMonthSelect();
@@ -512,9 +518,14 @@ function loadFromStorage(){
 function clearStorage(){
   localStorage.removeItem(LS_KEY);
   monthsData={}; activeYYYYMM=null; soldiers=[];
-  document.getElementById('importPanel').style.display='block';
-  document.getElementById('mainUI').style.display='none';
-  document.getElementById('importStatus').textContent='🗑️ ล้างข้อมูลแล้ว';
+  biaData={}; selected=new Set(); currentBiaSoldiers=[];
+  const ip=document.getElementById('importPanel');
+  const mu=document.getElementById('mainUI');
+  if(ip) ip.style.display='block';
+  if(mu) mu.style.display='none';
+  const st=document.getElementById('importStatus');
+  if(st) st.textContent='🗑️ ล้างข้อมูลแล้ว';
+  goHome();
 }
 
 function getCfg(){
@@ -550,42 +561,61 @@ const COL37_UNIT = {
 };
 const SHEET_UNIT = {'ร้อย.บก.':'ร้อย.บก.','ร้อย .1':'ร้อย.1','ร้อย.1':'ร้อย.1','ร้อย.2':'ร้อย.2','ร้อย.คม.':'ร้อย.คม.','ทหารใหม่':'ทหารใหม่'};
 
+function findColByHeader(headers, keywords){
+  for(var i=0;i<headers.length;i++){
+    var h=String(headers[i]||'').replace(/[\s]+/g,' ').trim();
+    if(keywords.some(function(k){return h.indexOf(k)>=0;})) return i;
+  }
+  return -1;
+}
+
 function parseRows(wb){
-  let result=[], detectedYYYYMM=null;
-  wb.SheetNames.forEach(sn=>{
-    const ws=wb.Sheets[sn];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    rows.forEach((row,ri)=>{
-      if(ri<2)return;
-      const seq=row[0]; if(!seq||isNaN(Number(seq)))return;
-      // ใช้ col37 (AL) ระบุกองร้อยเป็นหลัก
-      const col37Val=String(row[37]||'').trim();
-      const unitLabel=COL37_UNIT[col37Val]||SHEET_UNIT[sn];
-      if(!unitLabel)return;
-      const rawId=String(row[1]||'').replace(/[^0-9]/g,'');
-      const fname=String(row[3]||'').trim(), lname=String(row[4]||'').trim();
-      if(!fname&&!lname)return;
-      const levelRaw=String(row[27]||'').trim();
-      let level='';
-      const lm=levelRaw.match(/([0-9]+)#\s*([0-9]+)#/);
-      if(lm)level='พ.'+lm[1]+'/'+lm[2];
-      const salary=parseFloat(String(row[28]||'0').replace(/,/g,''))||0;
-      const phck=parseFloat(String(row[30]||'0').replace(/,/g,''))||0;
-      const deduct=parseFloat(String(row[32]||'0').replace(/,/g,''))||0;
-      if(!detectedYYYYMM && row[33] && !isNaN(Number(row[33]))){
-        detectedYYYYMM=String(row[33]);
-      }
-      // unitFull สำหรับแสดงในบิล
-      const unitFullMap={'ร้อย.บก.':'ร้อย.บก.พัน.ช.คมศ.พล.ช.','ร้อย.1':'ร้อย.ช.คมศ.ที่ 1','ร้อย.2':'ร้อย.ช.คมศ.ที่ 2','ร้อย.คม.':'ร้อย.ช.คม.และ ซบร.','ทหารใหม่':'ทหารใหม่'};
-      const unitFull = unitFullMap[unitLabel]||unitLabel;
-      // เก็บ yyyymm ของแถวนี้ด้วย (สำหรับ multi-month)
-      const rowYYYYMM = (row[33]&&!isNaN(Number(row[33])))?String(row[33]):'';
-      result.push({id:rawId,fname,lname,unit:unitLabel,unitFull,level,salary,phck,deduct,yyyymm:rowYYYYMM});
+  var result=[], detectedYYYYMM=null;
+  wb.SheetNames.forEach(function(sn){
+    var ws=wb.Sheets[sn];
+    var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(rows.length<2) return;
+    var hdr=rows[1];
+    var COL={
+      seq:0, id:1, fname:3, lname:4,
+      level:  findColByHeader(hdr,['ระดับ#','(30,31)']),
+      salary: findColByHeader(hdr,['เงินเดือน','(32)']),
+      phck:   findColByHeader(hdr,['พชค','ครองชีพ','(34)']),
+      deduct: findColByHeader(hdr,['ต้องหัก']),
+      yyyymm: findColByHeader(hdr,['ปีเดือนที่จ่าย']),
+      unit:   findColByHeader(hdr,['อ้างอิงสำหรับหน่วยงาน 1'])
+    };
+    if(COL.level<0)  COL.level=27;
+    if(COL.salary<0) COL.salary=28;
+    if(COL.phck<0)   COL.phck=30;
+    if(COL.deduct<0) COL.deduct=32;
+    if(COL.yyyymm<0) COL.yyyymm=33;
+    if(COL.unit<0)   COL.unit=37;
+    var unitFullMap={'ร้อย.บก.':'ร้อย.บก.พัน.ช.คมศ.พล.ช.','ร้อย.1':'ร้อย.ช.คมศ.ที่ 1','ร้อย.2':'ร้อย.ช.คมศ.ที่ 2','ร้อย.คม.':'ร้อย.ช.คม.และ ซบร.','ทหารใหม่':'ทหารใหม่'};
+    rows.forEach(function(row,ri){
+      if(ri<2) return;
+      var seq=row[COL.seq]; if(!seq||isNaN(Number(seq))) return;
+      var col37Val=String(row[COL.unit]||'').trim().replace('.0','');
+      var unitLabel=COL37_UNIT[col37Val]||SHEET_UNIT[sn];
+      if(!unitLabel){ console.warn('unit not found: col='+col37Val+' sheet='+sn); return; }
+      var rawId=String(row[COL.id]||'').replace(/[^0-9]/g,'');
+      var fname=String(row[COL.fname]||'').trim();
+      var lname=String(row[COL.lname]||'').trim();
+      if(!fname&&!lname) return;
+      var levelRaw=String(row[COL.level]||'').trim();
+      var level=''; var lm=levelRaw.match(/([0-9]+)#\s*([0-9]+)#/);
+      if(lm) level='พ.'+lm[1]+'/'+lm[2];
+      var salary=parseFloat(String(row[COL.salary]||'0').replace(/,/g,''))||0;
+      var phck  =parseFloat(String(row[COL.phck]  ||'0').replace(/,/g,''))||0;
+      var deduct=parseFloat(String(row[COL.deduct]||'0').replace(/,/g,''))||0;
+      var rowYYYYMM=(row[COL.yyyymm]&&!isNaN(Number(row[COL.yyyymm])))?String(row[COL.yyyymm]).replace('.0',''):'';
+      if(!detectedYYYYMM&&rowYYYYMM) detectedYYYYMM=rowYYYYMM;
+      var unitFull=unitFullMap[unitLabel]||unitLabel;
+      result.push({id:rawId,fname:fname,lname:lname,unit:unitLabel,unitFull:unitFull,level:level,salary:salary,phck:phck,deduct:deduct,yyyymm:rowYYYYMM});
     });
   });
   return {rows:result, yyyymm:detectedYYYYMM};
 }
-
 function applyDetectedMonth(yyyymm){
   if(!yyyymm||yyyymm.length<6)return;
   // 256905 → ปี 2569, เดือน 05
@@ -626,15 +656,23 @@ function handleFile(input){
         const incoming=byMonth[ym];
         if(monthsData[ym]){
           // เดือนนี้มีข้อมูลแล้ว → merge กรองซ้ำด้วย id
-          const existIds=new Set(monthsData[ym].soldiers.map(s=>s.id));
-          const newRows=incoming.filter(r=>!existIds.has(r.id));
-          if(newRows.length>0){
-            const combined=[...monthsData[ym].soldiers,...newRows];
-            combined.forEach((s,i)=>s.no=i+1);
-            monthsData[ym].soldiers=combined;
-            totalAdded+=newRows.length;
-            totalUpdated++;
-          }
+          // Merge: update ถ้า id ซ้ำ, เพิ่มถ้า id ใหม่
+          const existMap=new Map(monthsData[ym].soldiers.map(s=>[s.id,s]));
+          let added=0, updated=0;
+          incoming.forEach(r=>{
+            if(existMap.has(r.id)){
+              // อัพเดทข้อมูลคนเดิม (เงินเดือน/พชค./หักอาจเปลี่ยน)
+              const old=existMap.get(r.id);
+              Object.assign(old,{salary:r.salary,phck:r.phck,deduct:r.deduct,level:r.level,unit:r.unit,unitFull:r.unitFull,yyyymm:r.yyyymm});
+              updated++;
+            } else {
+              existMap.set(r.id,r);
+              added++;
+            }
+          });
+          monthsData[ym].soldiers=[...existMap.values()];
+          monthsData[ym].soldiers.forEach((s,i)=>s.no=i+1);
+          totalAdded+=added; totalUpdated++;
         } else {
           // เดือนใหม่ → สร้าง
           incoming.forEach((s,i)=>s.no=i+1);
@@ -645,9 +683,10 @@ function handleFile(input){
         }
       });
 
-      // switch ไปเดือนล่าสุดที่เพิ่ง import
+      // คง activeYYYYMM เดิม ถ้ายังมีข้อมูล มิฉะนั้นไปเดือนล่าสุด
       const latestYM=Object.keys(byMonth).sort().pop();
-      setActiveMonth(latestYM, false);
+      const keepYM=(activeYYYYMM&&monthsData[activeYYYYMM])?activeYYYYMM:latestYM;
+      setActiveMonth(keepYM, false);
       renderMonthTabs();
       saveToStorage();
       renderMonthSelect();
@@ -668,7 +707,7 @@ function handleFile(input){
 const dz=document.getElementById('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');const f=e.dataTransfer.files;if(f.length){const fi=document.getElementById('fileInput2');Object.defineProperty(fi,'files',{value:f});handleFile({files:f});}});
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');const f=e.dataTransfer.files;if(f&&f.length) handleFile({files:f});});
 
 /* ---- BUILTIN ---- */
 const BUILTIN=[
@@ -1208,7 +1247,7 @@ function saveEdit(no){
   s.id=document.getElementById('edit_id').value.trim();
   // อัพเดท monthsData
   if(activeYYYYMM&&monthsData[activeYYYYMM]){
-    const idx=monthsData[activeYYYYMM].soldiers.findIndex(x=>x.no===no);
+    const idx=monthsData[activeYYYYMM].soldiers.findIndex(x=>x.id===s.id);
     if(idx>=0)monthsData[activeYYYYMM].soldiers[idx]=s;
   }
   saveToStorage();
@@ -1264,6 +1303,7 @@ function printAll(){
 }
 function openPrint(slips){
   const w=window.open('','_blank');
+  if(!w){ alert('กรุณาอนุญาต Popup สำหรับเว็บนี้ แล้วลองใหม่'); return; }
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1392,11 +1432,11 @@ function getBiaKey(){
   return {ym,p};
 }
 
-function getBiaSoldierData(no, ym, p){
+function getBiaSoldierData(sid, ym, p){
+  // ใช้ id (เลขบัตร) เป็น key แทน no เพื่อความถูกต้องเมื่อ import/เรียงใหม่
   if(!biaData[ym]) biaData[ym]={};
   if(!biaData[ym][p]) biaData[ym][p]={};
-  if(!biaData[ym][p][no]){
-    // คำนวณวันตั้งต้นจากเดือนจริง
+  if(!biaData[ym][p][sid]){
     let defDays=10;
     if(p==='3'){
       const mon=ym?parseInt(ym.slice(-2)):0;
@@ -1404,9 +1444,9 @@ function getBiaSoldierData(no, ym, p){
       const lastDay=mon>0?new Date(yrCE,mon,0).getDate():31;
       defDays=lastDay-20;
     }
-    biaData[ym][p][no]={days:defDays, deductDays:defDays, extra:0};
+    biaData[ym][p][sid]={days:defDays, deductDays:defDays, extra:0};
   }
-  return biaData[ym][p][no];
+  return biaData[ym][p][sid];
 }
 
 function applyDefaultDays(){
@@ -1452,7 +1492,7 @@ function loadBiaData(){
   tbody.innerHTML='';
   let totEarn=0, totFood=0, totExtra=0, totTransfer=0;
   currentBiaSoldiers.forEach((s,i)=>{
-    const d=getBiaSoldierData(s.no,finalYm,p);
+    const d=getBiaSoldierData(s.id,finalYm,p);
     const earn=rate*d.days;
     const foodDeduct=deductRate*d.deductDays;
     const extra=d.extra||0;
@@ -1466,17 +1506,17 @@ function loadBiaData(){
       <td style="padding:7px 10px;"><span style="font-size:11px;padding:2px 7px;border-radius:20px;background:#ddeaf7;color:#0d3d73;">${s.unit}</span></td>
       <td style="padding:7px 4px;text-align:center;">
         <input type="number" value="${d.days}" min="0" max="31" style="width:56px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:13px;"
-          onchange="updateBia(${s.no},'days',this.value,'${finalYm}','${p}')">
+          onchange="updateBia('${s.id}','days',this.value,'${finalYm}','${p}')">
       </td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(earn)}</td>
       <td style="padding:7px 4px;text-align:center;">
         <input type="number" value="${d.deductDays}" min="0" max="31" style="width:56px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:13px;"
-          onchange="updateBia(${s.no},'deductDays',this.value,'${finalYm}','${p}')">
+          onchange="updateBia('${s.id}','deductDays',this.value,'${finalYm}','${p}')">
       </td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#8b2000;">${fmt(foodDeduct)}</td>
       <td style="padding:7px 4px;text-align:right;">
         <input type="number" value="${extra}" min="0" style="width:76px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;text-align:right;font-size:13px;"
-          onchange="updateBia(${s.no},'extra',this.value,'${finalYm}','${p}')">
+          onchange="updateBia('${s.id}','extra',this.value,'${finalYm}','${p}')">
       </td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#1a4f8a;">${fmt(transfer)}</td>`;
     tbody.appendChild(tr);
@@ -1504,18 +1544,18 @@ function loadBiaData(){
     <div><small style="color:#666;display:block;font-size:11px;">โอนค่าประกอบรวม</small><strong style="color:#3B6D11;">${fmt(totFood)}</strong></div>`;
 }
 
-function updateBia(no, field, val, ym, p){
+function updateBia(sid, field, val, ym, p){
   if(!biaData[ym]) biaData[ym]={};
   if(!biaData[ym][p]) biaData[ym][p]={};
-  if(!biaData[ym][p][no]) biaData[ym][p][no]={days:10,deductDays:10,extra:0};
-  biaData[ym][p][no][field]=parseFloat(val)||0;
+  if(!biaData[ym][p][sid]) biaData[ym][p][sid]={days:10,deductDays:10,extra:0};
+  biaData[ym][p][sid][field]=parseFloat(val)||0;
   // recalc summary only (ไม่ re-render ทั้งตาราง เพื่อไม่เสีย focus)
   const rate=parseFloat((document.getElementById('biaRate')||{value:96}).value)||96;
   const deductRate=parseFloat((document.getElementById('biaDeductRate')||{value:70}).value)||70;
   const {ym:cym,p:cp}=getBiaKey();
   let totEarn=0,totFood=0,totExtra=0,totTransfer=0;
   currentBiaSoldiers.forEach(s=>{
-    const d=getBiaSoldierData(s.no,cym,cp);
+    const d=getBiaSoldierData(s.id,cym,cp);
     totEarn+=rate*d.days; totFood+=deductRate*d.deductDays; totExtra+=d.extra||0;
     totTransfer+=(rate*d.days)-(deductRate*d.deductDays)-(d.extra||0);
   });
@@ -1529,9 +1569,9 @@ function updateBia(no, field, val, ym, p){
     <div><small style="color:#666;display:block;font-size:11px;">โอนค่าประกอบรวม</small><strong style="color:#3B6D11;">${fmt(totFood)}</strong></div>`;
   // อัพเดท row นั้น
   const rows=document.getElementById('biaBody').querySelectorAll('tr');
-  const idx=currentBiaSoldiers.findIndex(s=>s.no===no);
+  const idx=currentBiaSoldiers.findIndex(s=>s.id===sid);
   if(idx>=0&&rows[idx]){
-    const d=biaData[ym][p][no];
+    const d=biaData[ym][p][sid];
     const earn=rate*d.days, food=deductRate*d.deductDays, extra2=d.extra||0;
     const cells=rows[idx].querySelectorAll('td');
     if(cells[4]) cells[4].textContent=fmt(earn);
@@ -1553,7 +1593,7 @@ function exportBiaExcel(type){
     // โอนให้ทหาร
     filename=`โอนทหาร_${md.label}_${periodLabel}.xlsx`;
     currentBiaSoldiers.forEach(s=>{
-      const d=getBiaSoldierData(s.no,finalYm,p);
+      const d=getBiaSoldierData(s.id,finalYm,p);
       const earn=rate*d.days, food=deductRate*d.deductDays, extra=d.extra||0;
       const transfer=earn-food-extra;
       if(transfer>0){
@@ -1568,7 +1608,7 @@ function exportBiaExcel(type){
     filename=`โอนคาประกอบ_${md.label}_${periodLabel}.xlsx`;
     let totFood=0;
     currentBiaSoldiers.forEach(s=>{
-      const d=getBiaSoldierData(s.no,finalYm,p);
+      const d=getBiaSoldierData(s.id,finalYm,p);
       totFood+=deductRate*d.deductDays;
     });
     rows=[['006','7360587484','ค่าประกอบเลี้ยง พัน.ช.คมศ.พล.ช.',totFood]];
