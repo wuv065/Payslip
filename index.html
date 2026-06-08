@@ -462,14 +462,8 @@ async function loadFromGithub(){
     const bytes=atob(j.content.replace(/\n/g,''));const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const decoded=new TextDecoder().decode(arr);
     const parsed = JSON.parse(decoded);
     if(!parsed.monthsData||Object.keys(parsed.monthsData).length===0) return false;
-    if(Object.keys(monthsData).length>0){
-      Object.keys(parsed.monthsData).forEach(ym=>{
-        if(!monthsData[ym]) monthsData[ym]=parsed.monthsData[ym];
-      });
-    } else {
-      monthsData=parsed.monthsData;
-    }
-    saveToStorage();
+    monthsData = parsed.monthsData;
+    saveToStorage(); // เซฟลง LocalStorage ด้วย
     const ym = parsed.activeYYYYMM||Object.keys(monthsData).sort().pop();
     setActiveMonth(ym, false);
     renderMonthSelect();
@@ -561,61 +555,42 @@ const COL37_UNIT = {
 };
 const SHEET_UNIT = {'ร้อย.บก.':'ร้อย.บก.','ร้อย .1':'ร้อย.1','ร้อย.1':'ร้อย.1','ร้อย.2':'ร้อย.2','ร้อย.คม.':'ร้อย.คม.','ทหารใหม่':'ทหารใหม่'};
 
-function findColByHeader(headers, keywords){
-  for(var i=0;i<headers.length;i++){
-    var h=String(headers[i]||'').replace(/[\s]+/g,' ').trim();
-    if(keywords.some(function(k){return h.indexOf(k)>=0;})) return i;
-  }
-  return -1;
-}
-
 function parseRows(wb){
-  var result=[], detectedYYYYMM=null;
-  wb.SheetNames.forEach(function(sn){
-    var ws=wb.Sheets[sn];
-    var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    if(rows.length<2) return;
-    var hdr=rows[1];
-    var COL={
-      seq:0, id:1, fname:3, lname:4,
-      level:  findColByHeader(hdr,['ระดับ#','(30,31)']),
-      salary: findColByHeader(hdr,['เงินเดือน','(32)']),
-      phck:   findColByHeader(hdr,['พชค','ครองชีพ','(34)']),
-      deduct: findColByHeader(hdr,['ต้องหัก']),
-      yyyymm: findColByHeader(hdr,['ปีเดือนที่จ่าย']),
-      unit:   findColByHeader(hdr,['อ้างอิงสำหรับหน่วยงาน 1'])
-    };
-    if(COL.level<0)  COL.level=27;
-    if(COL.salary<0) COL.salary=28;
-    if(COL.phck<0)   COL.phck=30;
-    if(COL.deduct<0) COL.deduct=32;
-    if(COL.yyyymm<0) COL.yyyymm=33;
-    if(COL.unit<0)   COL.unit=37;
-    var unitFullMap={'ร้อย.บก.':'ร้อย.บก.พัน.ช.คมศ.พล.ช.','ร้อย.1':'ร้อย.ช.คมศ.ที่ 1','ร้อย.2':'ร้อย.ช.คมศ.ที่ 2','ร้อย.คม.':'ร้อย.ช.คม.และ ซบร.','ทหารใหม่':'ทหารใหม่'};
-    rows.forEach(function(row,ri){
-      if(ri<2) return;
-      var seq=row[COL.seq]; if(!seq||isNaN(Number(seq))) return;
-      var col37Val=String(row[COL.unit]||'').trim().replace('.0','');
-      var unitLabel=COL37_UNIT[col37Val]||SHEET_UNIT[sn];
-      if(!unitLabel){ console.warn('unit not found: col='+col37Val+' sheet='+sn); return; }
-      var rawId=String(row[COL.id]||'').replace(/[^0-9]/g,'');
-      var fname=String(row[COL.fname]||'').trim();
-      var lname=String(row[COL.lname]||'').trim();
-      if(!fname&&!lname) return;
-      var levelRaw=String(row[COL.level]||'').trim();
-      var level=''; var lm=levelRaw.match(/([0-9]+)#\s*([0-9]+)#/);
-      if(lm) level='พ.'+lm[1]+'/'+lm[2];
-      var salary=parseFloat(String(row[COL.salary]||'0').replace(/,/g,''))||0;
-      var phck  =parseFloat(String(row[COL.phck]  ||'0').replace(/,/g,''))||0;
-      var deduct=parseFloat(String(row[COL.deduct]||'0').replace(/,/g,''))||0;
-      var rowYYYYMM=(row[COL.yyyymm]&&!isNaN(Number(row[COL.yyyymm])))?String(row[COL.yyyymm]).replace('.0',''):'';
-      if(!detectedYYYYMM&&rowYYYYMM) detectedYYYYMM=rowYYYYMM;
-      var unitFull=unitFullMap[unitLabel]||unitLabel;
-      result.push({id:rawId,fname:fname,lname:lname,unit:unitLabel,unitFull:unitFull,level:level,salary:salary,phck:phck,deduct:deduct,yyyymm:rowYYYYMM});
+  let result=[], detectedYYYYMM=null;
+  wb.SheetNames.forEach(sn=>{
+    const ws=wb.Sheets[sn];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    rows.forEach((row,ri)=>{
+      if(ri<2)return;
+      const seq=row[0]; if(!seq||isNaN(Number(seq)))return;
+      // ใช้ col37 (AL) ระบุกองร้อยเป็นหลัก
+      const col37Val=String(row[37]||'').trim();
+      const unitLabel=COL37_UNIT[col37Val]||SHEET_UNIT[sn];
+      if(!unitLabel)return;
+      const rawId=String(row[1]||'').replace(/[^0-9]/g,'');
+      const fname=String(row[3]||'').trim(), lname=String(row[4]||'').trim();
+      if(!fname&&!lname)return;
+      const levelRaw=String(row[27]||'').trim();
+      let level='';
+      const lm=levelRaw.match(/([0-9]+)#\s*([0-9]+)#/);
+      if(lm)level='พ.'+lm[1]+'/'+lm[2];
+      const salary=parseFloat(String(row[28]||'0').replace(/,/g,''))||0;
+      const phck=parseFloat(String(row[30]||'0').replace(/,/g,''))||0;
+      const deduct=parseFloat(String(row[32]||'0').replace(/,/g,''))||0;
+      if(!detectedYYYYMM && row[33] && !isNaN(Number(row[33]))){
+        detectedYYYYMM=String(row[33]);
+      }
+      // unitFull สำหรับแสดงในบิล
+      const unitFullMap={'ร้อย.บก.':'ร้อย.บก.พัน.ช.คมศ.พล.ช.','ร้อย.1':'ร้อย.ช.คมศ.ที่ 1','ร้อย.2':'ร้อย.ช.คมศ.ที่ 2','ร้อย.คม.':'ร้อย.ช.คม.และ ซบร.','ทหารใหม่':'ทหารใหม่'};
+      const unitFull = unitFullMap[unitLabel]||unitLabel;
+      // เก็บ yyyymm ของแถวนี้ด้วย (สำหรับ multi-month)
+      const rowYYYYMM = (row[33]&&!isNaN(Number(row[33])))?String(row[33]):'';
+      result.push({id:rawId,fname,lname,unit:unitLabel,unitFull,level,salary,phck,deduct,yyyymm:rowYYYYMM});
     });
   });
   return {rows:result, yyyymm:detectedYYYYMM};
 }
+
 function applyDetectedMonth(yyyymm){
   if(!yyyymm||yyyymm.length<6)return;
   // 256905 → ปี 2569, เดือน 05
@@ -1455,10 +1430,10 @@ function applyDefaultDays(){
   if(!biaData[ym]) biaData[ym]={};
   if(!biaData[ym][p]) biaData[ym][p]={};
   currentBiaSoldiers.forEach(s=>{
-    if(!biaData[ym][p][s.id]) biaData[ym][p][s.id]={};
-    biaData[ym][p][s.id].days=defDays;
-    biaData[ym][p][s.id].deductDays=defDays;
-    biaData[ym][p][s.id].extra=biaData[ym][p][s.id].extra||0;
+    if(!biaData[ym][p][s.no]) biaData[ym][p][s.no]={};
+    biaData[ym][p][s.no].days=defDays;
+    biaData[ym][p][s.no].deductDays=defDays;
+    biaData[ym][p][s.no].extra=biaData[ym][p][s.no].extra||0;
   });
   loadBiaData();
 }
