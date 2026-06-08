@@ -1328,6 +1328,19 @@ function switchTab(tab){
     bia.style.display='none';
     tS.style.cssText=STYLE_TAB_ACTIVE;
     tB.style.cssText=STYLE_TAB_INACTIVE;
+    // โชว์ mainUI ถ้ามีข้อมูล หรือ importPanel ถ้าไม่มี
+    const mu=document.getElementById('mainUI');
+    const ip=document.getElementById('importPanel');
+    if(soldiers.length>0){
+      if(mu) mu.style.display='block';
+      if(ip) ip.style.display='none';
+      render();
+      renderSummaryInline();
+      renderMonthSelect();
+    } else {
+      if(ip) ip.style.display='block';
+      if(mu) mu.style.display='none';
+    }
   } else {
     salary.style.display='none';
     bia.style.display='block';
