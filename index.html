@@ -215,6 +215,7 @@ table.main tr:hover td{background:#f5f8fd;}
     <button class="btn btn-green" onclick="printSelected()">🖨️ พิมพ์ที่เลือก</button>
     <button class="btn btn-primary" onclick="printAll()">📄 พิมพ์ทั้งหมดในหน้า</button>
     <button class="btn" onclick="printByUnit()" style="background:#5c3d8f;color:#fff;border-color:#5c3d8f;">📋 พิมพ์แยกกองร้อย</button>
+    <button class="btn" onclick="exportSalaryExcel()" style="background:#0f766e;color:#fff;border-color:#0f766e;">📥 Export Excel</button>
     <span id="selectedCount" style="font-size:13px;color:#555;"></span>
   </div>
 </div>
@@ -1299,6 +1300,35 @@ function printByUnit(){
     list.forEach((s,i)=>slips.push(buildSlip(s,i+1,cfg)));
   });
   openPrint(slips);
+}
+
+function exportSalaryExcel(){
+  const cfg = getCfg();
+  const list = getFiltered();
+  if(!list.length){ alert('ไม่มีข้อมูล'); return; }
+  const wb = XLSX.utils.book_new();
+  // header
+  const header = ['เลขประจำตัวประชาชน','ชื่อ','นามสกุล','หน่วย','ระดับ/ขั้น','เงินเดือน','พชค.','ยอดเบิก (เงินเดือน+พชค.)','ยอดหัก','ยอดรับสุทธิ'];
+  const rows = list.map(s=>{
+    const income = s.salary + s.phck;
+    const net    = calcNet(s, cfg);
+    return [s.id, s.fname, s.lname, s.unit, s.level, s.salary, s.phck, income, s.deduct, net];
+  });
+  // row รวม
+  const totIncome = list.reduce((a,s)=>a+s.salary+s.phck, 0);
+  const totDeduct = list.reduce((a,s)=>a+s.deduct, 0);
+  const totNet    = list.reduce((a,s)=>a+calcNet(s,cfg), 0);
+  const totSal    = list.reduce((a,s)=>a+s.salary, 0);
+  const totPhck   = list.reduce((a,s)=>a+s.phck, 0);
+  rows.push(['','รวมทั้งหมด ('+list.length+' คน)','','','',totSal,totPhck,totIncome,totDeduct,totNet]);
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  // column widths
+  ws['!cols'] = [{wch:18},{wch:14},{wch:16},{wch:14},{wch:10},{wch:10},{wch:10},{wch:16},{wch:10},{wch:12}];
+  const md = monthsData[activeYYYYMM];
+  const sheetName = (md?md.label:'เงินเดือน').slice(0,31);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, 'เงินเดือน_'+(md?md.label:'export')+'.xlsx');
 }
 
 function printAll(){
