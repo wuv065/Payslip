@@ -6350,7 +6350,7 @@
           "level": "พ.1/18",
           "salary": 4400,
           "phck": 3720,
-          "deduct": 500,
+          "deduct": 0,
           "yyyymm": "256906",
           "no": 52
         },
@@ -7098,5 +7098,5 @@
       ]
     }
   },
-  "activeYYYYMM": "256905"
+  "activeYYYYMM": "256906"
 }
