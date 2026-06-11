@@ -1627,7 +1627,7 @@ function exportBiaExcel(type){
     // โอนให้ทหาร
     filename=`โอนทหาร_${md.label}_${periodLabel}.xlsx`;
     currentBiaSoldiers.forEach(s=>{
-      const d=getBiaSoldierData(s.id,finalYm,p);
+      const d=getBiaSoldierData(s.id,ym2,p);
       const earn=rate*d.days, food=deductRate*d.deductDays, extra=d.extra||0;
       const transfer=earn-food-extra;
       if(transfer>0){
@@ -1642,7 +1642,7 @@ function exportBiaExcel(type){
     filename=`โอนคาประกอบ_${md.label}_${periodLabel}.xlsx`;
     let totFood=0;
     currentBiaSoldiers.forEach(s=>{
-      const d=getBiaSoldierData(s.id,finalYm,p);
+      const d=getBiaSoldierData(s.id,ym2,p);
       totFood+=deductRate*d.deductDays;
     });
     rows=[['006','7360587484','ค่าประกอบเลี้ยง พัน.ช.คมศ.พล.ช.',totFood]];
