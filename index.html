@@ -250,7 +250,14 @@ table.main tr:hover td{background:#f5f8fd;}
         <input id="biaDaysDefault" type="number" value="10" readonly style="width:70px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;background:#f8f8f5;cursor:default;" title="คำนวณอัตโนมัติตามเดือน" style="width:70px;padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-size:14px;">
       </div>
     </div>
-    <div id="biaSummary" style="display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:#eef3fa;border-radius:8px;border:1px solid #c5d8f0;font-size:13.5px;"></div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:10px;border-top:1px solid #eee;margin-top:10px;">
+      <div><label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">กรองกองร้อย</label>
+        <select id="biaUnitFilter" style="padding:7px 10px;border:1px solid #bbb;border-radius:7px;font-family:'TH Sarabun PSK','Sarabun',sans-serif;font-size:14px;" onchange="loadBiaData()">
+          <option value="all">— ทั้งหมด —</option>
+        </select>
+      </div>
+    </div>
+    <div id="biaSummary" style="display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:#eef3fa;border-radius:8px;border:1px solid #c5d8f0;font-size:13.5px;margin-top:10px;"></div>
   </div>
   <div style="background:#fff;border-radius:10px;border:1px solid #ccc;overflow:auto;margin-bottom:14px;">
     <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
@@ -616,7 +623,9 @@ function parseRows(wb){
       var rowYYYYMM=(row[COL.yyyymm]&&!isNaN(Number(row[COL.yyyymm])))?String(row[COL.yyyymm]).replace('.0',''):'';
       if(!detectedYYYYMM&&rowYYYYMM) detectedYYYYMM=rowYYYYMM;
       var unitFull=unitFullMap[unitLabel]||unitLabel;
-      result.push({id:rawId,fname:fname,lname:lname,unit:unitLabel,unitFull:unitFull,level:level,salary:salary,phck:phck,deduct:deduct,yyyymm:rowYYYYMM});
+      var accountNo  = String(row[25]||'').trim().replace(/\.0$/,'');
+      var accountName= String(row[26]||'').trim();
+      result.push({id:rawId,fname:fname,lname:lname,unit:unitLabel,unitFull:unitFull,level:level,salary:salary,phck:phck,deduct:deduct,yyyymm:rowYYYYMM,accountNo:accountNo,accountName:accountName});
     });
   });
   return {rows:result, yyyymm:detectedYYYYMM};
@@ -1514,7 +1523,24 @@ function loadBiaData(){
   }
   const soldiers_list = (monthsData[finalYm]||{soldiers:[]}).soldiers;
   const UNIT_ORDER=['ร้อย.บก.','ร้อย.1','ร้อย.2','ร้อย.คม.','ทหารใหม่'];
-  currentBiaSoldiers = [...soldiers_list].sort((a,b)=>{
+  // อัพเดท dropdown กองร้อย
+  const biaUF=document.getElementById('biaUnitFilter');
+  if(biaUF){
+    const curUnit=biaUF.value||'all';
+    const allBiaUnits=[...new Set(soldiers_list.map(s=>s.unit))];
+    biaUF.innerHTML='<option value="all">— ทั้งหมด —</option>';
+    UNIT_ORDER.filter(u=>allBiaUnits.includes(u)).forEach(u=>{
+      const opt=document.createElement('option');
+      opt.value=u; opt.textContent=u;
+      if(u===curUnit) opt.selected=true;
+      biaUF.appendChild(opt);
+    });
+  }
+  const biaUnitSel=(biaUF&&biaUF.value!=='all')?biaUF.value:null;
+  const filtered_bia = biaUnitSel
+    ? soldiers_list.filter(s=>s.unit===biaUnitSel)
+    : soldiers_list;
+  currentBiaSoldiers = [...filtered_bia].sort((a,b)=>{
     const ai=UNIT_ORDER.indexOf(a.unit), bi=UNIT_ORDER.indexOf(b.unit);
     return ai-bi || a.no-b.no;
   });
@@ -1567,15 +1593,54 @@ function loadBiaData(){
     <td style="padding:8px 10px;text-align:right;">${fmt(totExtra)}</td>
     <td style="padding:8px 10px;text-align:right;color:#1a4f8a;">${fmt(totTransfer)}</td>`;
   tbody.appendChild(tfoot);
-  // summary bar
   const periodLabel=['','งวด 1 (1-10)','งวด 2 (11-20)','งวด 3 (21-สิ้นเดือน)'][p]||'งวด '+p;
+  // สรุปแยกกองร้อย
+  const byUnitSummary={};
+  currentBiaSoldiers.forEach(s=>{
+    const d=getBiaSoldierData(s.id,finalYm,p);
+    const earn2=rate*d.days, food2=deductRate*d.deductDays, extra2=d.extra||0;
+    if(!byUnitSummary[s.unit]) byUnitSummary[s.unit]={earn:0,food:0,extra:0,transfer:0,count:0};
+    byUnitSummary[s.unit].earn+=earn2;
+    byUnitSummary[s.unit].food+=food2;
+    byUnitSummary[s.unit].extra+=extra2;
+    byUnitSummary[s.unit].transfer+=(earn2-food2-extra2);
+    byUnitSummary[s.unit].count++;
+  });
+  const unitRows=UNIT_ORDER.filter(u=>byUnitSummary[u]).map(u=>{
+    const d2=byUnitSummary[u];
+    return `<tr style="border-bottom:1px solid #e0eaf5;">
+      <td style="padding:5px 10px;font-weight:600;">${u}</td>
+      <td style="padding:5px 10px;text-align:center;">${d2.count}</td>
+      <td style="padding:5px 10px;text-align:right;">${fmt(d2.earn)}</td>
+      <td style="padding:5px 10px;text-align:right;color:#8b2000;">${fmt(d2.food)}</td>
+      <td style="padding:5px 10px;text-align:right;color:#8b2000;">${fmt(d2.extra)}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:700;color:#1a4f8a;">${fmt(d2.transfer)}</td>
+    </tr>`;
+  }).join('');
   document.getElementById('biaSummary').innerHTML=`
-    <div><small style="color:#666;display:block;font-size:11px;">งวด</small><strong>${periodLabel}</strong></div>
-    <div><small style="color:#666;display:block;font-size:11px;">ยอดเบิกรวม</small><strong>${fmt(totEarn)}</strong></div>
-    <div><small style="color:#666;display:block;font-size:11px;">หักค่าประกอบรวม</small><strong style="color:#8b2000;">${fmt(totFood)}</strong></div>
-    <div><small style="color:#666;display:block;font-size:11px;">หักอื่นๆรวม</small><strong style="color:#8b2000;">${fmt(totExtra)}</strong></div>
-    <div><small style="color:#666;display:block;font-size:11px;">โอนทหารรวม</small><strong style="color:#1a4f8a;">${fmt(totTransfer)}</strong></div>
-    <div><small style="color:#666;display:block;font-size:11px;">โอนค่าประกอบรวม</small><strong style="color:#3B6D11;">${fmt(totFood)}</strong></div>`;
+    <div style="width:100%;overflow-x:auto;">
+      <div style="margin-bottom:8px;font-weight:700;color:#1a4f8a;">${periodLabel} — ${currentBiaSoldiers.length} คน</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#ddeaf7;">
+          <th style="padding:6px 10px;text-align:left;">กองร้อย</th>
+          <th style="padding:6px 10px;text-align:center;">จำนวน</th>
+          <th style="padding:6px 10px;text-align:right;">ยอดเบิก</th>
+          <th style="padding:6px 10px;text-align:right;">หักค่าประกอบ</th>
+          <th style="padding:6px 10px;text-align:right;">หักอื่นๆ</th>
+          <th style="padding:6px 10px;text-align:right;">โอนทหาร</th>
+        </tr></thead>
+        <tbody>${unitRows}
+          <tr style="background:#eef3fa;font-weight:700;border-top:2px solid #b3ccf0;">
+            <td style="padding:6px 10px;">รวม</td>
+            <td style="padding:6px 10px;text-align:center;">${currentBiaSoldiers.length}</td>
+            <td style="padding:6px 10px;text-align:right;">${fmt(totEarn)}</td>
+            <td style="padding:6px 10px;text-align:right;color:#8b2000;">${fmt(totFood)}</td>
+            <td style="padding:6px 10px;text-align:right;color:#8b2000;">${fmt(totExtra)}</td>
+            <td style="padding:6px 10px;text-align:right;color:#1a4f8a;">${fmt(totTransfer)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function updateBia(sid, field, val, ym, p){
@@ -1631,7 +1696,7 @@ function exportBiaExcel(type){
       const earn=rate*d.days, food=deductRate*d.deductDays, extra=d.extra||0;
       const transfer=earn-food-extra;
       if(transfer>0){
-        rows.push(['006', s.id||'', s.fname+' '+s.lname, transfer]);
+        rows.push(['006', s.accountNo||s.id||'', s.accountName||(s.fname+' '+s.lname), transfer]);
       }
     });
     const ws=XLSX.utils.aoa_to_sheet([['รหัสธนาคาร','เลขบัญชี','ชื่อบัญชี','ยอดเงิน'],...rows]);
